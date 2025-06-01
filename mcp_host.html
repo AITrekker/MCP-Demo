@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Host with MCP clients</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Model selector dropdown -->
+  <div class="model-selector">
+    <span class="model-label">Model:</span>
+    <select id="modelSelector">
+      <option value="loading">Loading models...</option>
+    </select>
+  </div>
+
+  <!-- Tools toggle switch -->
+  <div class="toggle-container">
+    <span class="toggle-label">Tools:</span>
+    <label class="switch">
+      <input type="checkbox" id="toolsToggle" checked>
+      <span class="slider"></span>
+    </label>
+    <span class="tool-status" id="toolStatus">ON</span>
+  </div>
+
+  <!-- Title indicates the single LLM in use -->
+  <h2>Host with MCP clients</h2>
+  
+  <!-- Input box for user messages -->
+  <input type="text" id="userInput" placeholder="Type a message and press Enter..." />
+
+  <!-- Container for the single response panel -->
+  <div id="chatbox">
+    <div class="chat-container">
+      <h3 id="modelTitle">Waiting for input...</h3>
+      <pre id="response">Type a message and press Enter to begin.</pre>
+    </div>
+  </div>
+  
+  <script>
+      let toolsEnabled = true; // Default to enabled
+      
+      // Fetch available models when page loads
+      document.addEventListener('DOMContentLoaded', fetchAvailableModels);
+      
+      // Fetch available models from Ollama
+      async function fetchAvailableModels() {
+        try {
+          const response = await fetch("http://localhost:11434/api/tags");
+          
+          if (!response.ok) {
+            throw new Error("Failed to fetch models");
+          }
+          
+          const data = await response.json();
+          const models = data.models || [];
+          
+          // Populate the dropdown
+          const selector = document.getElementById("modelSelector");
+          selector.innerHTML = ""; // Clear the loading option
+          
+          models.forEach(modelInfo => {
+            const option = document.createElement("option");
+            option.value = modelInfo.name;
+            option.textContent = modelInfo.name;
+            selector.appendChild(option);
+          });
+          
+          // Set default model if available
+          if (models.length > 0) {
+            const defaultModel = models[0];
+            model = { id: defaultModel.name, displayName: defaultModel.name };
+            updateModelTitle("LLM");
+          }
+        } catch (error) {
+          console.error("Error fetching models:", error);
+          document.getElementById("modelSelector").innerHTML = 
+            '<option value="error">Error loading models</option>';
+        }
+      }
+      
+      // Update the title with the response source
+      function updateModelTitle(source, toolName = null) {
+        if (source === "Tool" && toolName) {
+          document.getElementById("modelTitle").textContent = `Response from Tool: ${toolName}`;
+        } else if (source === "LLM") {
+          document.getElementById("modelTitle").textContent = `Response from LLM: ${model.displayName}`;
+        } else {
+          document.getElementById("modelTitle").textContent = `Response from ${source}`;
+        }
+      }
+      
+      // Model selector event listener
+      document.getElementById("modelSelector").addEventListener("change", function() {
+        const selectedModel = this.value;
+        model = { id: selectedModel, displayName: selectedModel };
+        // Only update the title if we're currently showing an LLM response
+        if (document.getElementById("modelTitle").textContent.includes("LLM")) {
+          updateModelTitle("LLM");
+        }
+      });
+
+      // Toggle tools functionality
+      document.getElementById("toolsToggle").addEventListener("change", function() {
+        toolsEnabled = this.checked;
+        document.getElementById("toolStatus").innerText = toolsEnabled ? "ON" : "OFF";
+      });
+
+      document.getElementById("userInput").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          sendMessage();
+        }
+      });
+
+      async function sendMessage() {
+        const inputField = document.getElementById("userInput");
+        const userMessage = inputField.value.trim();
+        if (userMessage === "") return;
+
+        document.getElementById("response").innerText = "Loading...";
+        updateModelTitle("Processing");
+        inputField.value = "";
+
+        try {
+          // Only attempt tool routing if tools are enabled
+          if (toolsEnabled) {
+            const toolResult = await routeToAppropriateTools(userMessage);
+            if (toolResult) {
+              document.getElementById("response").innerText = toolResult.response;
+              updateModelTitle("Tool", toolResult.toolName);
+              return;
+            }
+          }
+          
+          // Fall back to LLM response if tools are disabled or no tool matched
+          const response = await fetchLLMResponse(model.id, userMessage);
+          document.getElementById("response").innerText = response;
+          updateModelTitle("LLM");
+        } catch (error) {
+          document.getElementById("response").innerText = "Error: " + error.message;
+          updateModelTitle("Error");
+        }
+      }
+      
+      // Simple tool router that finds and executes the appropriate tool
+      async function routeToAppropriateTools(userMessage) {
+        for (const tool of availableTools) {
+          const matches = tool.pattern.exec(userMessage);
+          if (matches) {
+            try {
+              // Tool matched, execute it
+              const response = await tool.execute(matches);
+              return {
+                response: response,
+                toolName: tool.name
+              };
+            } catch (err) {
+              throw new Error(`Error executing ${tool.name}: ${err.message}`);
+            }
+          }
+        }
+        // No tool matched
+        return null;
+      }
+
+      async function fetchLLMResponse(modelId, prompt) {
+        const response = await fetch("http://localhost:11434/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: modelId,
+            prompt: prompt,
+            stream: false
+          })
+        });
+
+        const data = await response.json();
+        return data.response || "No response received.";
+      }
+
+      // ============================================================================
+      // TOOL HANDLERS AND DEFINITIONS
+      // Add new tools here for easy maintenance
+      // ============================================================================
+
+      async function fetchWeather(location) {
+        const response = await fetch("http://localhost:5001/get-forecast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ location: location })
+        });
+
+        if (!response.ok) throw new Error("Weather API error");
+
+        return await response.json();
+      }
+
+      async function fetchTime(location) {
+        const response = await fetch("http://localhost:5002/get-time", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ location: location })
+        });
+
+        if (!response.ok) throw new Error("Time API error");
+
+        return await response.json();
+      }
+      
+      const availableTools = [
+        {
+          name: "get-forecast",
+          description: "Returns the current weather for a location",
+          pattern: /(?:weather|forecast).*(?:in|at|for)\s+([a-zA-Z\/\s_]+)/i,
+          execute: async (matches) => {
+            const location = matches[1].trim();
+            const result = await fetchWeather(location);
+            return `Weather in ${result.location}: ${result.forecast}`;
+          }
+        },
+        {
+          name: "get-time",
+          description: "Returns the current time for a location",
+          pattern: /(?:time|current time|what time).*(?:in|at|for)\s+([a-zA-Z\/\s_]+)/i,
+          execute: async (matches) => {
+            const location = matches[1].trim();
+            const result = await fetchTime(location);
+            return `Current time in ${result.location}: ${result.time} on ${result.date}`;
+          }
+        }
+        // Add new tools here
+        // Example:
+        // {
+        //   name: "tool-name",
+        //   description: "What the tool does",
+        //   pattern: /regex pattern to match user input/i,
+        //   execute: async (matches) => {
+        //     // Your code here
+        //   }
+        // }
+      ];
+  </script>
+</body>
+</html>
