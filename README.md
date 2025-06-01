@@ -14,15 +14,14 @@ This project demonstrates how to build and use MCP-compliant tools with real-wor
 
 ## Screenshots
 
-### Web UI
-![Web UI Screenshot](images/ui-demo.png)
+### Time Tool Example
+![Time Tool Response](images/time-tool-example.png)
 
 ### Weather Tool Example
 ![Weather Tool Response](images/weather-tool-example.png)
 
-### Time Tool Example
-![Time Tool Response](images/time-tool-example.png)
-
+### LLM Fallback with No Tools
+![Web UI Screenshot](images/no-tool-response.png)
 ## Project Structure
 
 ```
@@ -140,17 +139,6 @@ This implementation follows the standard MCP protocol flow:
 3. Web UI sends a tool call to the matching endpoint based on query
 4. Tool processes the request and returns a result
 5. UI receives and displays the result with appropriate attribution
-
-## Screenshots
-
-### Time Tool Example
-![Time Tool Response](images/time-tool-example.png)
-
-### Weather Tool Example
-![Weather Tool Response](images/weather-tool-example.png)
-
-### Web UI
-![Web UI Screenshot](images/no-tool-response.png)
 
 ## License
 
