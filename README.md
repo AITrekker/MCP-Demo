@@ -11,6 +11,45 @@ This project demonstrates how to build and deploy MCP-compliant tools using Dock
 3. **HTTP Bridge Service** - Translates between web requests and MCP protocol
 4. **Web Frontend** - Browser interface with Ollama LLM integration and intelligent tool routing
 
+### Quick Start
+
+1. **Ensure prerequisites are installed and running:**
+   ```bash
+   # Verify Docker is running
+   docker info
+   
+   # Verify Ollama is running with at least one model
+   curl http://localhost:11434/api/tags
+   # You should see a list of available models
+   ```
+   If Docker is not running, start Docker Desktop.
+   If Ollama is not running, start it and pull at least one model:
+   ```bash
+   ollama run llama2
+   # Or any other model you prefer
+   ```
+
+2. **Clone the repository:**
+   ```bash
+   git clone https://github.com/AITrekker/MCP-Demo.git
+   cd MCP-Demo
+   ```
+
+3. **Start the services:**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Open the web interface:**
+   ```
+   http://localhost:8080/mcp_host.html
+   ```
+
+5. **Try example queries:**
+   - "What's the weather in Seattle?"
+   - "What time is it in Tokyo?"
+   - "Tell me about quantum physics" (falls back to LLM)
+   
 ## Architecture
 
 ```
@@ -38,7 +77,7 @@ The system uses a microservices architecture where:
 ## Project Structure
 
 ```
-MCP_Docker-Demo/
+MCP-Demo/
 ├── bridge/
 │   ├── Dockerfile
 │   └── bridge.py              # Flask HTTP bridge service
@@ -97,29 +136,6 @@ A responsive web interface that provides:
 - [Docker](https://www.docker.com/get-started) and Docker Compose
 - [Ollama](https://ollama.ai/) running locally with at least one model installed
 
-### Quick Start
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/MCP_Docker-Demo.git
-   cd MCP_Docker-Demo
-   ```
-
-2. **Start the services:**
-   ```bash
-   docker-compose up --build
-   ```
-
-3. **Open the web interface:**
-   ```
-   http://localhost:8080/mcp_host.html
-   ```
-
-4. **Try example queries:**
-   - "What's the weather in Seattle?"
-   - "What time is it in Tokyo?"
-   - "Tell me about quantum physics" (falls back to LLM)
-
 ### Development Mode
 
 For faster development iterations, you can restart individual services:
@@ -155,6 +171,26 @@ MCP Response:  {"type": "tool-result", "output": {"location": "Seattle", "foreca
       ↓
 HTTP Response: {"location": "Seattle", "forecast": "..."}
 ```
+
+## Troubleshooting
+
+### Docker Authentication Issues
+
+If you encounter Docker authentication errors like `401 Unauthorized` when pulling images:
+
+```bash
+# Ensure you're logged in to Docker Hub
+docker login
+
+# Pre-pull required images before building
+docker pull python:3.11-slim
+docker pull nginx:alpine
+
+# Try building again
+docker-compose up --build
+```
+
+Sometimes restarting Docker Desktop can also resolve authentication issues.
 
 ## API Testing
 
