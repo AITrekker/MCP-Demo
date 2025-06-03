@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  bridge:
+    build:
+      context: .
+      dockerfile: bridge/Dockerfile
+    ports:
+      - "5000:5000"
+    container_name: bridge-server
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - bridge
+    container_name: frontend-server

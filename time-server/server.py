@@ -19,6 +19,14 @@ Usage:
     {"type":"tool-call","tool":"get-time","input":{"location":"New York"}}
     
     # Typically this server is called by an MCP client rather than directly
+    
+    # In this Docker demo, the bridge service calls this tool via subprocess
+
+Architecture in MCP-Demo:
+    Browser → Frontend Container → Bridge Container → MCP Tool (this file)
+    
+    The bridge service (bridge.py) executes this script as a subprocess and
+    communicates via stdin/stdout using the MCP protocol format.
 
 Reference:
     For more information about the Model Context Protocol, see:
@@ -26,7 +34,12 @@ Reference:
     
     APIs used:
     - Geocoding: https://nominatim.openstreetmap.org/ (no API key needed)
-    - Time API: https://timeapi.io/ (no API key needed)
+    - Time API: https://timeapi.io/ (may have rate limits, falls back to UTC)
+    
+Note:
+    This tool falls back to UTC time if the external APIs are unavailable
+    or rate-limited. For production use, consider using a more reliable
+    timezone service or implementing local timezone data.
 """
 
 import sys

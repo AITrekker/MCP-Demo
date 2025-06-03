@@ -19,10 +19,26 @@ Usage:
     {"type":"tool-call","tool":"get-forecast","input":{"location":"Seattle"}}
     
     # Typically this server is called by an MCP client rather than directly
+    
+    # In this Docker demo, the bridge service calls this tool via subprocess
+
+Architecture in MCP-Demo:
+    Browser → Frontend Container → Bridge Container → MCP Tool (this file)
+    
+    The bridge service (bridge.py) executes this script as a subprocess and
+    communicates via stdin/stdout using the MCP protocol format.
 
 Reference:
     For more information about the Model Context Protocol, see:
     https://modelcontextprotocol.io/
+    
+    APIs used:
+    - Weather API: https://wttr.in/ (no API key needed, may have rate limits)
+    
+Note:
+    This tool falls back to mock weather data if the external API is unavailable
+    or rate-limited. For production use, consider using a more reliable weather
+    service with proper API authentication and error handling.
 """
 
 import sys

@@ -1,16 +1,28 @@
-# MCP Client and Server Demo
+# MCP Docker Demo
 
-A demonstration of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with weather forecasting and time services.
+A Docker-based demonstration of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) with weather forecasting and time services.
 
 ## Project Overview
 
-This project demonstrates how to build and use MCP-compliant tools with real-world examples. It includes:
+This project demonstrates how to build and deploy MCP-compliant tools using Docker containers. It showcases a complete web application architecture with:
 
-1. An MCP-compliant weather server with forecast capabilities
-2. An MCP-compliant time server with geocoding and timezone detection
-3. A generic HTTP bridge for integrating MCP tools with web applications
-4. A web UI that connects to Ollama LLM with automatic tool routing
+1. **MCP Weather Tool** - Provides weather forecasts for any location
+2. **MCP Time Tool** - Returns current time and timezone information
+3. **HTTP Bridge Service** - Translates between web requests and MCP protocol
+4. **Web Frontend** - Browser interface with Ollama LLM integration and intelligent tool routing
 
+## Architecture
+
+```
+Browser → Frontend Container → Bridge Container → MCP Tools
+   ↓             ↓                    ↓              ↓
+HTML/JS    (Port 8080)         (Port 5000)    Python Scripts
+```
+
+The system uses a microservices architecture where:
+- **Frontend Container**: Serves the web interface
+- **Bridge Container**: Hosts the Flask API and executes MCP tools
+- **MCP Tools**: Run as subprocesses within the bridge container
 
 ## Screenshots
 
@@ -22,123 +34,180 @@ This project demonstrates how to build and use MCP-compliant tools with real-wor
 
 ### LLM Fallback with No Tools
 ![Web UI Screenshot](images/no-tool-response.png)
+
 ## Project Structure
 
 ```
-MCP-Demo/
+MCP_Docker-Demo/
+├── bridge/
+│   ├── Dockerfile
+│   └── bridge.py              # Flask HTTP bridge service
+├── frontend/
+│   ├── Dockerfile
+│   ├── mcp_host.html         # Web interface
+│   └── styles.css            # Styling
 ├── weather-server/
-│   └── server.py
+│   └── server.py             # MCP weather tool
 ├── time-server/
-│   └── server.py
-├── mcp_http_bridge.py
-├── run_bridge.py
-├── mcp_host.html
-├── styles.css
-├── requirements.txt
-├── LICENSE
-├── .gitignore
+│   └── server.py             # MCP time tool
+├── docker-compose.yml        # Container orchestration
 └── README.md
 ```
 
 ## Components
 
-### Weather Tool Server (`weather-server/server.py`)
+### Bridge Service (`bridge/bridge.py`)
 
-An MCP-compliant tool that provides weather forecasts. It:
-- Advertises its capabilities via the MCP tool description format
-- Implements the `get-forecast` tool with real API integration
-- Communicates via stdin/stdout following the MCP protocol
-- Includes proper error handling and validation
+A Flask-based HTTP service that acts as a bridge between web browsers and MCP tools:
+- Receives HTTP POST requests with JSON payloads
+- Translates them into MCP protocol format
+- Executes MCP tools as subprocesses via stdin/stdout
+- Returns formatted JSON responses to the browser
+- Handles CORS for browser compatibility
 
-### Time Tool Server (`time-server/server.py`)
+### Weather Tool (`weather-server/server.py`)
 
-An MCP-compliant tool that provides time information. It:
-- Advertises its capabilities via the MCP tool description format
-- Implements the `get-time` tool for any location
-- Uses OpenStreetMap for geocoding and TimeAPI.io for time data
-- Properly handles errors and edge cases
+An MCP-compliant tool that provides weather forecasts:
+- Uses wttr.in API for weather data
+- Falls back to mock data if API is unavailable
+- Follows MCP protocol for stdin/stdout communication
+- Implements the `get-forecast` tool
 
-### Generic HTTP Bridge (`mcp_http_bridge.py`)
+### Time Tool (`time-server/server.py`)
 
-A FastAPI server that can expose any MCP tool as a REST API. It:
-- Dynamically discovers and exposes tool capabilities
-- Manages the lifecycle of the MCP tool subprocess
-- Translates between HTTP and MCP protocols
-- Provides CORS support for web integration
+An MCP-compliant tool that provides time information:
+- Uses OpenStreetMap for geocoding locations
+- Estimates timezones based on geographical coordinates
+- Implements the `get-time` tool
+- Returns local time, date, and timezone information
 
-### Bridge Runner (`run_bridge.py`)
+### Web Frontend (`frontend/mcp_host.html`)
 
-A utility script that makes it easy to launch HTTP bridges:
-- Configurable server path and port
-- Simple command-line interface
-- Launches the appropriate FastAPI server
-
-### Web UI with Ollama Integration (`mcp_host.html` & `styles.css`)
-
-A web interface that allows users to:
-- Select from available Ollama models
-- Toggle MCP tools on/off
-- Enter natural language queries
-- Get automatic routing to the appropriate tool based on query content
-- See responses with attribution (Tool vs LLM)
+A responsive web interface that provides:
+- Model selection from available Ollama models
+- Toggle switch for enabling/disabling tools
+- Pattern-based routing to appropriate MCP tools
+- Fallback to LLM for general queries
+- Clear attribution of response sources (Tool vs LLM)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.7+
-- [Ollama](https://ollama.ai/) installed locally for LLM integration
+- [Docker](https://www.docker.com/get-started) and Docker Compose
+- [Ollama](https://ollama.ai/) running locally with at least one model installed
 
-### Installation
+### Quick Start
 
-Install all required packages using the provided requirements.txt file:
-
-`pip install -r requirements.txt`
-
-This will install all necessary dependencies including `fastapi`, `uvicorn`, `requests`, `pydantic`, and other required packages.
-
-### Running the Demo
-
-1. Start the HTTP bridges for both tools:
-   ```
-   # Start the weather tool bridge
-   python run_bridge.py --server-path="./weather-server/server.py" --port=5001
-   
-   # Start the time tool bridge (in another terminal)
-   python run_bridge.py --server-path="./time-server/server.py" --port=5002
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/MCP_Docker-Demo.git
+   cd MCP_Docker-Demo
    ```
 
-2. Make sure Ollama is running locally with at least 1 model loaded
-
-3. Start a simple HTTP server to serve the HTML file:
-   ```
-   python -m http.server 8000
+2. **Start the services:**
+   ```bash
+   docker-compose up --build
    ```
 
-4. Open `http://localhost:8000/mcp_host.html` in a web browser
+3. **Open the web interface:**
+   ```
+   http://localhost:8080/mcp_host.html
+   ```
 
-5. Try queries like:
+4. **Try example queries:**
    - "What's the weather in Seattle?"
    - "What time is it in Tokyo?"
    - "Tell me about quantum physics" (falls back to LLM)
 
+### Development Mode
+
+For faster development iterations, you can restart individual services:
+
+```bash
+# Restart frontend only (for HTML/CSS changes)
+docker-compose restart frontend
+
+# Rebuild and restart bridge (for Python changes)
+docker-compose build bridge
+docker-compose up
+```
 
 ## How It Works
 
-1. The web interface detects the type of query using regex patterns
-2. Based on the pattern match, it routes to the appropriate MCP tool
-3. If no pattern matches, it falls back to the LLM for general responses
-4. The HTTP bridge manages communication with the MCP tool
-5. Results are displayed in the web interface with attribution
+### Query Flow
 
-## MCP Protocol Flow
+1. **User Input**: User types a natural language query in the web interface
+2. **Pattern Matching**: JavaScript regex patterns determine if the query matches a tool
+3. **Tool Execution**: If matched, HTTP request is sent to the bridge service
+4. **MCP Protocol**: Bridge translates HTTP to MCP format and executes the tool
+5. **Response**: Tool output is returned through the bridge to the browser
+6. **LLM Fallback**: If no tool matches, query is sent directly to Ollama
 
-This implementation follows the standard MCP protocol flow:
-1. Tool server outputs tool description JSON
-2. HTTP bridge reads description and exposes appropriate endpoints
-3. Web UI sends a tool call to the matching endpoint based on query
-4. Tool processes the request and returns a result
-5. UI receives and displays the result with appropriate attribution
+### MCP Protocol Translation
+
+```
+HTTP Request:  {"location": "Seattle"}
+      ↓
+MCP Format:    {"type": "tool-call", "tool": "get-forecast", "input": {"location": "Seattle"}}
+      ↓
+MCP Response:  {"type": "tool-result", "output": {"location": "Seattle", "forecast": "..."}}
+      ↓
+HTTP Response: {"location": "Seattle", "forecast": "..."}
+```
+
+## API Testing
+
+You can test the bridge service directly using curl:
+
+```bash
+# Test weather endpoint
+curl -X POST http://localhost:5000/weather \
+  -H "Content-Type: application/json" \
+  -d '{"location":"Seattle"}'
+
+# Test time endpoint
+curl -X POST http://localhost:5000/time \
+  -H "Content-Type: application/json" \
+  -d '{"location":"Tokyo"}'
+```
+
+## Configuration
+
+### Port Configuration
+
+- **Frontend**: `8080` (configurable in docker-compose.yml)
+- **Bridge**: `5000` (configurable in docker-compose.yml)
+- **Ollama**: `11434` (default Ollama port on host machine)
+
+### Adding New Tools
+
+To add a new MCP tool:
+
+1. Create a new directory (e.g., `calculator-server/`)
+2. Implement your tool following the MCP protocol (see existing tools as examples)
+3. Add the tool directory to the bridge container in `bridge/Dockerfile`
+4. Add a new endpoint in `bridge/bridge.py`
+5. Add pattern matching in the frontend HTML
+
+## Troubleshooting
+
+### Common Issues
+
+- **"Failed to fetch" errors**: Ensure Ollama is running on port 11434
+- **Tool execution errors**: Check Docker logs with `docker-compose logs bridge`
+- **Frontend not loading**: Verify the frontend container is running on port 8080
+
+### Viewing Logs
+
+```bash
+# View all logs
+docker-compose logs
+
+# View specific service logs
+docker-compose logs bridge
+docker-compose logs frontend
+```
 
 ## License
 
@@ -146,33 +215,28 @@ MIT
 
 ## Contributing
 
-I welcome contributions to expand this demonstration of the Model Context Protocol! Here are some ways you can contribute:
+Contributions are welcome! This demo provides a foundation for exploring the Model Context Protocol with Docker. Some areas for expansion:
 
-### Adding New MCP Tools
+### Potential New Tools
+- **Calculator Tool**: Mathematical computations
+- **File Search Tool**: Search local filesystem
+- **API Client Tool**: Generic REST API client
+- **Database Query Tool**: Simple database operations
 
-This demo includes weather and time tools, but many other tools could be integrated:
-
-1. **Calculator Tool**: Implement basic or scientific calculations with natural language parsing
-2. **URL Shortener Tool**: Create a simple service to shorten URLs
-3. **Dictionary/Thesaurus Tool**: Build a word lookup service using free dictionary APIs
-4. **Note-taking Tool**: Implement a simple note storage and retrieval system
+### Enhancement Ideas
+- **Tool Discovery**: Dynamic tool registration and discovery
+- **Authentication**: Add API key management
+- **Monitoring**: Add health checks and metrics
+- **Performance**: Implement tool response caching
 
 ### Contribution Steps
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/calculator-tool`)
-3. Create your tool following the MCP protocol (use existing tools as templates)
-4. Update documentation to include your new tool
-5. Commit your changes (`git commit -m 'Add calculator tool'`)
-6. Push to the branch (`git push origin feature/calculator-tool`)
-7. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/new-tool`)
+3. Implement your changes following the existing patterns
+4. Test with Docker Compose
+5. Update documentation
+6. Submit a pull request
 
-### Development Guidelines
-
-- Ensure your tool follows the MCP protocol specification
-- Include comprehensive error handling
-- Document your tool's capabilities in the README
-- Add example queries for your tool
-
-I'm excited to see what MCP tools you build!
+For questions or discussions about MCP integration patterns, feel free to open an issue!
 

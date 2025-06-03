@@ -42,3 +42,6 @@ config.ini
 
 # Local development settings
 .DS_Store
+
+# test file
+test.bat

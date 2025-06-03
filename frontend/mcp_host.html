@@ -41,6 +41,7 @@
   
   <script>
       let toolsEnabled = true; // Default to enabled
+      let model = null; // Don't hardcode - will be set by fetchAvailableModels()
       
       // Fetch available models when page loads
       document.addEventListener('DOMContentLoaded', fetchAvailableModels);
@@ -68,30 +69,36 @@
             selector.appendChild(option);
           });
           
-          // Set default model if available
+          // Set default model if available (use first available model)
           if (models.length > 0) {
             const defaultModel = models[0];
             model = { id: defaultModel.name, displayName: defaultModel.name };
+            selector.value = defaultModel.name; // Set the dropdown to show this model
             updateModelTitle("LLM");
+          } else {
+            // No models available
+            model = null;
+            selector.innerHTML = '<option value="">No models available</option>';
           }
         } catch (error) {
           console.error("Error fetching models:", error);
           document.getElementById("modelSelector").innerHTML = 
             '<option value="error">Error loading models</option>';
+          model = null;
         }
       }
-      
-      // Update the title with the response source
+
+      // Update the title with the response source (add safety check)
       function updateModelTitle(source, toolName = null) {
         if (source === "Tool" && toolName) {
           document.getElementById("modelTitle").textContent = `Response from Tool: ${toolName}`;
-        } else if (source === "LLM") {
+        } else if (source === "LLM" && model) {
           document.getElementById("modelTitle").textContent = `Response from LLM: ${model.displayName}`;
         } else {
           document.getElementById("modelTitle").textContent = `Response from ${source}`;
         }
       }
-      
+
       // Model selector event listener
       document.getElementById("modelSelector").addEventListener("change", function() {
         const selectedModel = this.value;
@@ -115,10 +122,18 @@
         }
       });
 
+      // Add safety check to sendMessage function
       async function sendMessage() {
         const inputField = document.getElementById("userInput");
         const userMessage = inputField.value.trim();
         if (userMessage === "") return;
+
+        // Check if model is available
+        if (!model || !model.id) {
+          document.getElementById("response").innerText = "Error: No model selected or available";
+          updateModelTitle("Error");
+          return;
+        }
 
         document.getElementById("response").innerText = "Loading...";
         updateModelTitle("Processing");
@@ -187,26 +202,25 @@
       // ============================================================================
 
       async function fetchWeather(location) {
-        const response = await fetch("http://localhost:5001/get-forecast", {
+        // Use the host machine's IP or localhost from the browser perspective
+        const response = await fetch("http://localhost:5000/weather", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ location: location })
         });
 
         if (!response.ok) throw new Error("Weather API error");
-
         return await response.json();
       }
 
       async function fetchTime(location) {
-        const response = await fetch("http://localhost:5002/get-time", {
+        const response = await fetch("http://localhost:5000/time", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ location: location })
         });
 
         if (!response.ok) throw new Error("Time API error");
-
         return await response.json();
       }
       
