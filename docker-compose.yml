@@ -1,18 +1,16 @@
-version: '3.8'
-
 services:
-  bridge:
+  mcp-server:
     build:
       context: .
-      dockerfile: bridge/Dockerfile
+      dockerfile: mcp-server/Dockerfile
     ports:
       - "5000:5000"
-    container_name: bridge-server
+    container_name: mcp-server
 
   frontend:
     build: ./frontend
     ports:
       - "8080:8080"
     depends_on:
-      - bridge
+      - mcp-server
     container_name: frontend-server

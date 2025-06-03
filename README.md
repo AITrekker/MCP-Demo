@@ -53,15 +53,15 @@ This project demonstrates how to build and deploy MCP-compliant tools using Dock
 ## Architecture
 
 ```
-Browser → Frontend Container → Bridge Container → MCP Tools
-   ↓             ↓                    ↓              ↓
-HTML/JS    (Port 8080)         (Port 5000)    Python Scripts
+Browser → Frontend Container → MCP Server Container → MCP Tools
+   ↓             ↓                    ↓                  ↓
+HTML/JS    (Port 8080)         (Port 5000)      Python Scripts
 ```
 
 The system uses a microservices architecture where:
 - **Frontend Container**: Serves the web interface
-- **Bridge Container**: Hosts the Flask API and executes MCP tools
-- **MCP Tools**: Run as subprocesses within the bridge container
+- **MCP Server Container**: Hosts the Flask API and executes MCP tools
+- **MCP Tools**: Run as subprocesses within the MCP server container
 
 ## Screenshots
 
@@ -78,33 +78,33 @@ The system uses a microservices architecture where:
 
 ```
 MCP-Demo/
-├── bridge/
+├── mcp-server/
 │   ├── Dockerfile
-│   └── bridge.py              # Flask HTTP bridge service
+│   └── server.py             # Flask HTTP MCP server
 ├── frontend/
 │   ├── Dockerfile
 │   ├── mcp_host.html         # Web interface
 │   └── styles.css            # Styling
-├── weather-server/
-│   └── server.py             # MCP weather tool
-├── time-server/
-│   └── server.py             # MCP time tool
+├── weather-tool/
+│   └── tool.py               # MCP weather tool
+├── time-tool/
+│   └── tool.py               # MCP time tool
 ├── docker-compose.yml        # Container orchestration
 └── README.md
 ```
 
 ## Components
 
-### Bridge Service (`bridge/bridge.py`)
+### MCP Server (`mcp-server/server.py`)
 
-A Flask-based HTTP service that acts as a bridge between web browsers and MCP tools:
+A Flask-based HTTP server that acts as an intermediary between web browsers and MCP tools:
 - Receives HTTP POST requests with JSON payloads
 - Translates them into MCP protocol format
 - Executes MCP tools as subprocesses via stdin/stdout
 - Returns formatted JSON responses to the browser
 - Handles CORS for browser compatibility
 
-### Weather Tool (`weather-server/server.py`)
+### Weather Tool (`weather-tool/tool.py`)
 
 An MCP-compliant tool that provides weather forecasts:
 - Uses wttr.in API for weather data
@@ -112,7 +112,7 @@ An MCP-compliant tool that provides weather forecasts:
 - Follows MCP protocol for stdin/stdout communication
 - Implements the `get-forecast` tool
 
-### Time Tool (`time-server/server.py`)
+### Time Tool (`time-tool/tool.py`)
 
 An MCP-compliant tool that provides time information:
 - Uses OpenStreetMap for geocoding locations
@@ -192,6 +192,23 @@ docker-compose up --build
 
 Sometimes restarting Docker Desktop can also resolve authentication issues.
 
+### Common Issues
+
+- **"Failed to fetch" errors**: Ensure Ollama is running on port 11434
+- **Tool execution errors**: Check Docker logs with `docker-compose logs bridge`
+- **Frontend not loading**: Verify the frontend container is running on port 8080
+
+### Viewing Logs
+
+```bash
+# View all logs
+docker-compose logs
+
+# View specific service logs
+docker-compose logs bridge
+docker-compose logs frontend
+```
+
 ## API Testing
 
 You can test the bridge service directly using curl:
@@ -225,25 +242,6 @@ To add a new MCP tool:
 3. Add the tool directory to the bridge container in `bridge/Dockerfile`
 4. Add a new endpoint in `bridge/bridge.py`
 5. Add pattern matching in the frontend HTML
-
-## Troubleshooting
-
-### Common Issues
-
-- **"Failed to fetch" errors**: Ensure Ollama is running on port 11434
-- **Tool execution errors**: Check Docker logs with `docker-compose logs bridge`
-- **Frontend not loading**: Verify the frontend container is running on port 8080
-
-### Viewing Logs
-
-```bash
-# View all logs
-docker-compose logs
-
-# View specific service logs
-docker-compose logs bridge
-docker-compose logs frontend
-```
 
 ## License
 

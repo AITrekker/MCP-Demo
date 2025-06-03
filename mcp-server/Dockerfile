@@ -6,10 +6,10 @@ WORKDIR /app
 RUN pip install --no-cache-dir flask flask-cors requests
 
 # Copy files from root context
-COPY bridge/bridge.py /app/bridge.py
-COPY weather-server/ /app/weather-server/
-COPY time-server/ /app/time-server/
+COPY mcp-server/server.py /app/server.py
+COPY weather-tool/ /app/weather-tool/
+COPY time-tool/ /app/time-tool/
 
 EXPOSE 5000
 
-CMD ["python", "/app/bridge.py"]
+CMD ["python", "/app/server.py"]

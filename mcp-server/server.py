@@ -1,14 +1,14 @@
 """
-MCP Bridge Service
+MCP Server
 
-This Flask-based HTTP bridge service acts as an intermediary between web browsers
+This Flask-based HTTP server acts as an intermediary between web browsers
 and Model Context Protocol (MCP) tools. It provides a REST API interface that
 translates HTTP requests into MCP protocol calls.
 
 Architecture:
-    Browser → HTTP Request → Bridge Service → MCP Tool → HTTP Response → Browser
+    Browser → HTTP Request → MCP Server → MCP Tool → HTTP Response → Browser
     
-    The bridge service:
+    The MCP server:
     1. Receives HTTP POST requests with JSON payloads
     2. Translates them into MCP protocol format
     3. Executes MCP tools as subprocesses via stdin/stdout
@@ -21,15 +21,15 @@ Endpoints:
 
 Usage in MCP_Docker-Demo:
     This service runs in a Docker container and is called by the frontend
-    container's JavaScript code. It bridges the gap between web technologies
-    and MCP protocol tools.
+    container's JavaScript code. It serves as the MCP server that hosts
+    and executes MCP tools.
 
-    Frontend (mcp_host.html) → Bridge (this file) → MCP Tools (weather/time servers)
+    Frontend (mcp_host.html) → MCP Server (this file) → MCP Tools (weather/time tools)
 
 Docker Integration:
-    - Runs on port 5000 inside the bridge container
+    - Runs on port 5000 inside the mcp-server container
     - Exposed to host machine via docker-compose port mapping
-    - Contains weather-server and time-server Python scripts
+    - Contains weather-tool and time-tool Python scripts
     - Executes MCP tools as subprocesses within the same container
 
 Protocol Translation:
@@ -51,12 +51,12 @@ import json
 app = Flask(__name__)
 CORS(app)  # Enable CORS for browser access from different origins
 
-def call_mcp_tool(server_path, tool_name, input_data):
+def call_mcp_tool(tool_path, tool_name, input_data):
     """
     Execute an MCP tool as a subprocess and parse its response.
     
     Args:
-        server_path (str): Path to the MCP tool Python script
+        tool_path (str): Path to the MCP tool Python script
         tool_name (str): Name of the MCP tool to call (e.g., "get-forecast")
         input_data (dict): Input parameters for the tool
     
@@ -74,10 +74,9 @@ def call_mcp_tool(server_path, tool_name, input_data):
             "tool": tool_name,
             "input": input_data
         }
-        
-        # Execute the MCP tool as a subprocess
+          # Execute the MCP tool as a subprocess
         result = subprocess.run(
-            ["python", server_path],
+            ["python", tool_path],
             input=json.dumps(mcp_request),
             capture_output=True,
             text=True,
@@ -115,9 +114,8 @@ def weather():
     
     if not location:
         return jsonify({"error": "Missing location"}), 400
-    
-    # Call the weather MCP tool
-    result = call_mcp_tool("/app/weather-server/server.py", "get-forecast", {"location": location})
+      # Call the weather MCP tool
+    result = call_mcp_tool("/app/weather-tool/tool.py", "get-forecast", {"location": location})
     print(f"Weather result: {result}")
     return jsonify(result)
 
@@ -135,9 +133,8 @@ def time():
     
     if not location:
         return jsonify({"error": "Missing location"}), 400
-    
-    # Call the time MCP tool
-    result = call_mcp_tool("/app/time-server/server.py", "get-time", {"location": location})
+      # Call the time MCP tool
+    result = call_mcp_tool("/app/time-tool/tool.py", "get-time", {"location": location})
     print(f"Time result: {result}")
     return jsonify(result)
 
