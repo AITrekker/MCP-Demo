@@ -125,9 +125,15 @@ An MCP-compliant tool that provides time information:
 A responsive web interface that provides:
 - Model selection from available Ollama models
 - Toggle switch for enabling/disabling tools
-- Pattern-based routing to appropriate MCP tools
-- Fallback to LLM for general queries
+- **LLM-based intelligent tool routing** - Uses the selected LLM to analyze user queries and determine which tool to use
+- Automatic parameter extraction from natural language queries
+- Fallback to LLM for general queries that don't require tools
 - Clear attribution of response sources (Tool vs LLM)
+
+The new intelligent routing system understands various ways users might request tool functionality:
+- "What's the weather like in Paris?" → Weather tool
+- "Can you tell me the current time in Tokyo?" → Time tool  
+- "How do I learn Python?" → LLM response
 
 ## Getting Started
 
@@ -144,8 +150,8 @@ For faster development iterations, you can restart individual services:
 # Restart frontend only (for HTML/CSS changes)
 docker-compose restart frontend
 
-# Rebuild and restart bridge (for Python changes)
-docker-compose build bridge
+# Rebuild and restart mcp-server (for Python changes)
+docker-compose build mcp-server
 docker-compose up
 ```
 
@@ -154,11 +160,32 @@ docker-compose up
 ### Query Flow
 
 1. **User Input**: User types a natural language query in the web interface
-2. **Pattern Matching**: JavaScript regex patterns determine if the query matches a tool
-3. **Tool Execution**: If matched, HTTP request is sent to the bridge service
-4. **MCP Protocol**: Bridge translates HTTP to MCP format and executes the tool
-5. **Response**: Tool output is returned through the bridge to the browser
-6. **LLM Fallback**: If no tool matches, query is sent directly to Ollama
+2. **LLM Analysis**: The selected LLM analyzes the query to determine if it requires a specific tool
+3. **Parameter Extraction**: If a tool is needed, the LLM extracts relevant parameters (like location)
+4. **Tool Execution**: The appropriate MCP tool is called via the HTTP bridge service
+5. **MCP Protocol**: Bridge translates HTTP to MCP format and executes the tool
+6. **Response**: Tool output is returned through the bridge to the browser
+7. **LLM Fallback**: If no tool is needed or confidence is low, query goes directly to Ollama
+
+### Intelligent Tool Selection
+
+The system now uses LLM-based analysis instead of rigid pattern matching:
+
+```
+User Query: "What's the weather like in London today?"
+       ↓
+LLM Analysis: {"tool": "get-forecast", "location": "London", "confidence": 0.95}
+       ↓ 
+Tool Execution: Weather API call for London
+       ↓
+Response: "Weather in London: Cloudy and 64°F in London"
+```
+
+This approach handles natural language variations much better than regex patterns:
+- "Weather in Seattle?" ✓
+- "How's the climate in Tokyo right now?" ✓  
+- "Is it raining in Paris?" ✓
+- "Current atmospheric conditions for New York?" ✓
 
 ### MCP Protocol Translation
 

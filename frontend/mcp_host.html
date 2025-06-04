@@ -137,63 +137,161 @@
 
         document.getElementById("response").innerText = "Loading...";
         updateModelTitle("Processing");
-        inputField.value = "";
 
         try {
           // Only attempt tool routing if tools are enabled
           if (toolsEnabled) {
+            console.log("🔧 Tools enabled, attempting routing for:", userMessage);
             const toolResult = await routeToAppropriateTools(userMessage);
             if (toolResult) {
+              console.log("✅ Tool result received:", toolResult);
               document.getElementById("response").innerText = toolResult.response;
               updateModelTitle("Tool", toolResult.toolName);
               return;
             }
+            console.log("⬇️ No tool selected, falling back to LLM");
+          } else {
+            console.log("🔧 Tools disabled, going directly to LLM");
           }
           
           // Fall back to LLM response if tools are disabled or no tool matched
+          console.log("🤖 Making direct LLM call for:", userMessage);
           const response = await fetchLLMResponse(model.id, userMessage);
+          console.log("✅ LLM response received:", response);
           document.getElementById("response").innerText = response;
           updateModelTitle("LLM");
         } catch (error) {
+          console.error("💥 Error in sendMessage:", error);
           document.getElementById("response").innerText = "Error: " + error.message;
           updateModelTitle("Error");
         }
       }
-      
-      // Simple tool router that finds and executes the appropriate tool
+
+      // LLM-based tool router that analyzes user intent and selects appropriate tools
       async function routeToAppropriateTools(userMessage) {
-        for (const tool of availableTools) {
-          const matches = tool.pattern.exec(userMessage);
-          if (matches) {
-            try {
-              // Tool matched, execute it
-              const response = await tool.execute(matches);
-              return {
-                response: response,
-                toolName: tool.name
-              };
-            } catch (err) {
-              throw new Error(`Error executing ${tool.name}: ${err.message}`);
+        try {
+          // Build tool descriptions for the LLM
+          const toolDescriptions = availableTools.map(tool => 
+            `${tool.name}: ${tool.description}`
+          ).join('\n');
+
+          // Create a prompt for tool selection
+          const toolSelectionPrompt = `You are a tool router. Analyze the user's message and determine if it requires a specific tool.
+
+Available tools:
+get-forecast: Returns the current weather forecast for any location worldwide
+get-time: Returns the current time, date, and timezone for any location worldwide
+
+User message: "${userMessage}"
+
+Respond with ONLY a JSON object in this exact format:
+{
+  "tool": "tool-name-here" or null,
+  "location": "extracted-location" or null,
+  "confidence": 0.0-1.0
+}
+
+Rules:
+- Use "get-forecast" ONLY for explicit weather/forecast requests with a location
+- Use "get-time" ONLY for explicit time/clock requests with a location
+- Set tool to null for greetings, general questions, or any message without clear tool intent
+- Extract the location mentioned in the message (city, country, etc.)
+- Set confidence between 0.0 and 1.0 based on how certain you are
+- Be conservative: when in doubt, set tool to null and confidence low
+
+Examples:
+- "hi" → {"tool": null, "location": null, "confidence": 0.1}
+- "hello" → {"tool": null, "location": null, "confidence": 0.1}
+- "what's the weather in Paris?" → {"tool": "get-forecast", "location": "Paris", "confidence": 0.9}
+- "current time in Tokyo" → {"tool": "get-time", "location": "Tokyo", "confidence": 0.9}
+- "tell me about physics" → {"tool": null, "location": null, "confidence": 0.1}`;
+
+          console.log("🤖 Calling LLM for tool routing with model:", model.id);
+          console.log("📝 Tool selection prompt:", toolSelectionPrompt);
+          
+          const toolSelectionResponse = await fetchLLMResponse(model.id, toolSelectionPrompt);
+          console.log("🔍 LLM tool selection response:", toolSelectionResponse);
+          
+          // Parse the LLM response
+          let toolSelection;
+          try {
+            // Extract JSON from the response (handle cases where LLM adds extra text)
+            const jsonMatch = toolSelectionResponse.match(/\{[^{}]*\}/);
+            if (!jsonMatch) {
+              console.error("❌ No JSON found in LLM response:", toolSelectionResponse);
+              throw new Error("No JSON found in response");
             }
+            toolSelection = JSON.parse(jsonMatch[0]);
+            console.log("✅ Parsed tool selection:", toolSelection);
+          } catch (parseError) {
+            console.warn("⚠️  Failed to parse tool selection response:", toolSelectionResponse);
+            return null; // Fall back to LLM
+          }          // Validate the tool selection
+          if (!toolSelection.tool || toolSelection.confidence < 0.8) {
+            console.log("🚫 Tool selection rejected - tool:", toolSelection.tool, "confidence:", toolSelection.confidence);
+            return null; // Let LLM handle it
           }
+
+          console.log("✅ Tool selected:", toolSelection.tool, "with confidence:", toolSelection.confidence);
+
+          // Find and execute the selected tool
+          const selectedTool = availableTools.find(tool => tool.name === toolSelection.tool);
+          if (!selectedTool) {
+            console.warn("❌ Unknown tool selected:", toolSelection.tool);
+            return null;
+          }
+
+          // Check if we have the required location parameter
+          if (!toolSelection.location || toolSelection.location.trim() === "") {
+            console.log("❌ No location extracted for tool:", toolSelection.tool);
+            return null; // Fall back to LLM instead of showing error
+          }
+
+          console.log("🔧 Executing tool:", selectedTool.name, "with location:", toolSelection.location);
+          // Execute the tool
+          const result = await selectedTool.execute(toolSelection.location);
+          console.log("✅ Tool result:", result);
+          return {
+            response: result,
+            toolName: selectedTool.name
+          };
+
+        } catch (error) {
+          console.error("💥 Error in LLM-based tool routing:", error);
+          return null; // Fall back to LLM
         }
-        // No tool matched
-        return null;
       }
 
       async function fetchLLMResponse(modelId, prompt) {
-        const response = await fetch("http://localhost:11434/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: modelId,
-            prompt: prompt,
-            stream: false
-          })
-        });
+        console.log("📡 Making LLM API call to Ollama...");
+        console.log("🤖 Model:", modelId);
+        console.log("📝 Prompt:", prompt);
+        
+        try {
+          const response = await fetch("http://localhost:11434/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: modelId,
+              prompt: prompt,
+              stream: false
+            })
+          });
 
-        const data = await response.json();
-        return data.response || "No response received.";
+          console.log("📡 Ollama API response status:", response.status);
+          
+          if (!response.ok) {
+            throw new Error(`Ollama API error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log("✅ Ollama API response data:", data);
+          
+          return data.response || "No response received.";
+        } catch (error) {
+          console.error("💥 Error in fetchLLMResponse:", error);
+          throw error;
+        }
       }
 
       // ============================================================================
@@ -223,39 +321,36 @@
         if (!response.ok) throw new Error("Time API error");
         return await response.json();
       }
-      
+
       const availableTools = [
-        {
-          name: "get-forecast",
-          description: "Returns the current weather for a location",
-          pattern: /(?:weather|forecast).*(?:in|at|for)\s+([a-zA-Z\/\s_]+)/i,
-          execute: async (matches) => {
-            const location = matches[1].trim();
-            const result = await fetchWeather(location);
-            return `Weather in ${result.location}: ${result.forecast}`;
-          }
-        },
-        {
-          name: "get-time",
-          description: "Returns the current time for a location",
-          pattern: /(?:time|current time|what time).*(?:in|at|for)\s+([a-zA-Z\/\s_]+)/i,
-          execute: async (matches) => {
-            const location = matches[1].trim();
-            const result = await fetchTime(location);
-            return `Current time in ${result.location}: ${result.time} on ${result.date}`;
-          }
+      {
+        name: "get-forecast",
+        description: "Returns the current weather forecast for any location worldwide",
+        execute: async (location) => {
+          const result = await fetchWeather(location);
+          return `Weather in ${result.location}: ${result.forecast}`;
         }
-        // Add new tools here
-        // Example:
-        // {
-        //   name: "tool-name",
-        //   description: "What the tool does",
-        //   pattern: /regex pattern to match user input/i,
-        //   execute: async (matches) => {
-        //     // Your code here
-        //   }
-        // }
-      ];
+      },
+      {
+        name: "get-time",
+        description: "Returns the current time, date, and timezone for any location worldwide",
+        execute: async (location) => {
+          const result = await fetchTime(location);
+          return `Current time in ${result.location}: ${result.time} on ${result.date} (${result.timezone})`;
+        }
+      }
+      
+      // Add new tools here
+      // Example:
+      // {
+      //   name: "tool-name",
+      //   description: "What the tool does - be descriptive for LLM understanding",
+      //   execute: async (parameters) => {
+      //     // Your tool execution code here
+      //     // Parameters will be extracted by the LLM
+      //   }
+      // }
+    ];
   </script>
 </body>
 </html>
